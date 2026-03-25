@@ -128,7 +128,11 @@ export async function feeBumpHandler(
     );
 
     if (feePayerAccount.secretSource.type === "env") {
-      await signTransaction(feeBumpTx, feePayerAccount.secretSource.secret);
+      await signTransaction(
+        feeBumpTx,
+        feePayerAccount.secretSource.secret,
+        config.networkPassphrase
+      );
     } else {
       if (!config.vault) {
         throw new Error("Vault config missing for vault-backed fee payer signing");
