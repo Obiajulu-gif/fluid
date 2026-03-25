@@ -1,7 +1,11 @@
+
+import * as StellarSdk from "@stellar/stellar-sdk";
+
 import StellarSdk from "@stellar/stellar-sdk";
 import { SignerPool } from "./signing";
 
 export type HorizonSelectionStrategy = "priority" | "round_robin";
+
 
 export interface FeePayerAccount {
   publicKey: string;
@@ -60,6 +64,7 @@ export function loadConfig(): Config {
     process.env.FLUID_RATE_LIMIT_WINDOW_MS || "60000",
     10
   );
+
   const rateLimitMax = parseInt(process.env.FLUID_RATE_LIMIT_MAX || "5", 10);
 
   const baseFee = parseInt(process.env.FLUID_BASE_FEE || "100", 10);
@@ -122,8 +127,6 @@ export function loadConfig(): Config {
 
     const feePayerAccounts: FeePayerAccount[] = vaultPublicKeys.map(
       (publicKey, i) => {
-        // We only need the public key to build the fee-bump transaction;
-        // the Rust signer will fetch the private key from Vault at runtime.
         const keypair = StellarSdk.Keypair.fromPublicKey(publicKey);
         return {
           publicKey,
@@ -142,6 +145,8 @@ export function loadConfig(): Config {
       feeMultiplier,
       networkPassphrase,
       horizonUrl,
+      maxXdrSize: 10240,
+      maxOperations: 100,
       allowedOrigins,
       rateLimitWindowMs,
       rateLimitMax,
@@ -149,11 +154,21 @@ export function loadConfig(): Config {
     };
   }
 
+  const rawSecrets = process.env.FLUID_FEE_PAYER_SECRET || "";
+
+  const secrets = rawSecrets
+    .split(",")
+    .map((s: string) => s.trim())
+    .filter(Boolean);
+
+
   const secrets = parseCommaSeparatedList(rawSecrets);
+
   if (secrets.length === 0) {
     throw new Error("FLUID_FEE_PAYER_SECRET must contain at least one secret");
-  // Env fallback is only used when the secret env var is explicitly configured.
-  // This is useful for local development; production should use Vault.
+  }
+
+ 
   if (feePayerSecretsEnv.length === 0) {
     throw new Error(
       "No fee payer secrets configured. Provide either Vault settings (VAULT_ADDR + token/approle + FLUID_FEE_PAYER_VAULT_SECRET_PATHS + FLUID_FEE_PAYER_PUBLIC_KEYS) or set FLUID_FEE_PAYER_SECRET for env-based development."
@@ -177,6 +192,10 @@ export function loadConfig(): Config {
       selectionStrategy: "least_used",
     }
   );
+
+
+  const maxXdrSize = parseInt(process.env.FLUID_MAX_XDR_SIZE || "10240", 10);
+  const maxOperations = parseInt(process.env.FLUID_MAX_OPERATIONS || "100", 10);
 
   const baseFee = parseInt(process.env.FLUID_BASE_FEE || "100", 10);
   const feeMultiplier = parseFloat(process.env.FLUID_FEE_MULTIPLIER || "2.0");
@@ -207,6 +226,7 @@ export function loadConfig(): Config {
   // Safety limits to prevent DoS attacks
   const maxXdrSize = parseInt(process.env.FLUID_MAX_XDR_SIZE || "10240", 10); // Default: 10KB
   const maxOperations = parseInt(process.env.FLUID_MAX_OPERATIONS || "100", 10); // Default: 100 operations
+
 
   return {
     feePayerAccounts,

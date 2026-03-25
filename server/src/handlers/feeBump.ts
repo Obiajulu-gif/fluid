@@ -127,6 +127,44 @@ export async function feeBumpHandler(
         config.networkPassphrase
       );
 
+
+    //const baseFeeAmount = Math.floor(config.baseFee * config.feeMultiplier);
+
+    // Use extracted utility for correct fee calculation
+    const apiKeyConfig = res.locals.apiKey as ApiKeyConfig | undefined;
+    if (!apiKeyConfig) {
+      res.status(500).json({
+        error: "Missing tenant context for fee sponsorship",
+      });
+      return;
+    }
+    // Extract operation count safely
+    
+    const feeAmount = calculateFeeBumpFee(
+  innerTransaction,
+  config.baseFee,
+  config.feeMultiplier
+);
+
+    console.log("Fee calculation:", {
+      operationCount,
+      baseFee: config.baseFee,
+      multiplier: config.feeMultiplier,
+      finalFee: feeAmount,
+    });
+
+    const tenant = syncTenantFromApiKey(apiKeyConfig);
+    const quotaCheck = checkTenantDailyQuota(tenant, feeAmount);
+    if (!quotaCheck.allowed) {
+      res.status(403).json({
+        error: "Daily fee sponsorship quota exceeded",
+        currentSpendStroops: quotaCheck.currentSpendStroops,
+        attemptedFeeStroops: feeAmount,
+        dailyQuotaStroops: quotaCheck.dailyQuotaStroops,
+      });
+      return;
+    }
+
       feeBumpTx.sign(feePayerAccount.keypair);
       recordSponsoredTransaction(tenant.id, feeAmount);
 
@@ -134,6 +172,7 @@ export async function feeBumpHandler(
       console.log(
         `Fee-bump transaction created | fee_payer: ${feePayerAccount.publicKey}`
       );
+
 
       if (!body.submit) {
         const response: FeeBumpResponse = {
