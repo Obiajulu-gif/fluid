@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use base64::{engine::general_purpose::STANDARD, Engine};
 use stellar_xdr::curr::{
     FeeBumpTransaction, FeeBumpTransactionInnerTx, Limits, Operation, OperationBody, ReadXdr,
@@ -159,9 +161,9 @@ mod tests {
     use base64::{engine::general_purpose::STANDARD, Engine};
     use stellar_xdr::curr::{
         Asset, FeeBumpTransaction, FeeBumpTransactionEnvelope, FeeBumpTransactionExt,
-        FeeBumpTransactionInnerTx, Limits, Memo, MuxedAccount, Operation, OperationBody,
-        PaymentOp, Preconditions, SequenceNumber, Transaction, TransactionEnvelope,
-        TransactionExt, TransactionV1Envelope, Uint256, VecM, WriteXdr,
+        FeeBumpTransactionInnerTx, Limits, Memo, MuxedAccount, Operation, OperationBody, PaymentOp,
+        Preconditions, SequenceNumber, Transaction, TransactionEnvelope, TransactionExt,
+        TransactionV1Envelope, Uint256, VecM, WriteXdr,
     };
 
     /// Build a minimal Classic V1 transaction with a single Payment op.
@@ -408,7 +410,10 @@ mod tests {
         let xdr = classic_v1_xdr();
         let padded = format!("   {xdr}   \n");
         let result = parse_xdr(&padded);
-        assert!(result.is_ok(), "whitespace-padded XDR should parse: {result:?}");
+        assert!(
+            result.is_ok(),
+            "whitespace-padded XDR should parse: {result:?}"
+        );
     }
 
     #[test]
