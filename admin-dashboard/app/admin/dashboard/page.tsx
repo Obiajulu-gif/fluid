@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SignersTable, TransactionsTable } from "@/components/dashboard/ResponsiveTables";
 import { getDashboardPageData } from "@/lib/dashboard-data";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { SpendChart } from "@/components/dashboard/SpendChart";
 import { Coins, CheckCircle, Wallet, Zap } from "lucide-react";
 
 export default async function AdminDashboard() {
@@ -42,6 +43,7 @@ export default async function AdminDashboard() {
       </div>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* Stat Cards */}
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total XLM Sponsored"
@@ -69,6 +71,12 @@ export default async function AdminDashboard() {
           />
         </section>
 
+        {/* Spend Analytics Chart */}
+        <section className="mt-6">
+          <SpendChart />
+        </section>
+
+        {/* Tables */}
         <section className="mt-6 space-y-6">
           <div className="flex justify-end">
             <Link
