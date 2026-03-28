@@ -160,3 +160,17 @@ model PendingRegistration {
   @@index([token])
   @@index([status])
 }
+
+model Transaction {
+  id          String   @id @default(uuid())
+  txHash      String?  // The hash of the fee-bump transaction
+  innerTxHash String   // The hash of the original transaction
+  tenantId    String
+  status      String   // PENDING, SUCCESS, FAILED
+  costStroops BigInt
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([txHash])
+}

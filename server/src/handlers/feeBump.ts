@@ -12,6 +12,7 @@ import { verifyXdrNetwork } from "../utils/networkVerification";
 import { MockPriceOracle, validateSlippage } from "../utils/priceOracle";
 import { transactionMilestoneService } from "../services/discordMilestones";
 import { transactionStore } from "../workers/transactionStore";
+import { prisma } from "../utils/db";
 
 export interface FeeBumpResponse {
   xdr: string;
@@ -80,47 +81,98 @@ async function processFeeBump(
     );
   }
 
-  const feeBumpTx = StellarSdk.TransactionBuilder.buildFeeBumpTransaction(
-    feePayerAccount.keypair,
-    feeAmount.toString(),
-    innerTransaction,
-    config.networkPassphrase
-  );
+  const innerTxHash = innerTransaction.hash().toString("hex");
 
-  feeBumpTx.sign(feePayerAccount.keypair);
-  await recordSponsoredTransaction(tenant.id, feeAmount);
-  await maybeNotifyMilestones();
+  // Create transaction record with PENDING status
+  const transactionRecord = await prisma.transaction.create({
+    data: {
+      innerTxHash,
+      tenantId: tenant.id,
+      status: "PENDING",
+      costStroops: feeAmount,
+    },
+  });
 
-  const feeBumpXdr = feeBumpTx.toXDR();
+  try {
+    const feeBumpTx = StellarSdk.TransactionBuilder.buildFeeBumpTransaction(
+      feePayerAccount.keypair,
+      feeAmount.toString(),
+      innerTransaction,
+      config.networkPassphrase
+    );
 
-  if (submit && config.horizonUrl) {
-    const server = new StellarSdk.Horizon.Server(config.horizonUrl);
+    feeBumpTx.sign(feePayerAccount.keypair);
+    await recordSponsoredTransaction(tenant.id, feeAmount);
+    await maybeNotifyMilestones();
 
-    try {
-      const submissionResult = await server.submitTransaction(feeBumpTx);
-      await transactionStore.addTransaction(submissionResult.hash, tenant.id, "submitted");
+    const feeBumpXdr = feeBumpTx.toXDR();
+    const feeBumpTxHash = feeBumpTx.hash().toString("hex");
 
-      return {
-        xdr: feeBumpXdr,
-        status: "submitted",
-        hash: submissionResult.hash,
-        fee_payer: feePayerAccount.publicKey,
-      };
-    } catch (error: any) {
-      console.error("Transaction submission failed:", error);
-      throw new AppError(
-        `Transaction submission failed: ${error.message}`,
-        500,
-        "SUBMISSION_FAILED"
-      );
+    if (submit && config.horizonUrl) {
+      const server = new StellarSdk.Horizon.Server(config.horizonUrl);
+
+      try {
+        const submissionResult = await server.submitTransaction(feeBumpTx);
+        await transactionStore.addTransaction(submissionResult.hash, tenant.id, "submitted");
+
+        await prisma.transaction.update({
+          where: { id: transactionRecord.id },
+          data: {
+            status: "SUCCESS",
+            txHash: submissionResult.hash,
+          },
+        });
+
+        return {
+          xdr: feeBumpXdr,
+          status: "submitted",
+          hash: submissionResult.hash,
+          fee_payer: feePayerAccount.publicKey,
+        };
+      } catch (error: any) {
+        console.error("Transaction submission failed:", error);
+
+        // Update transaction record to FAILED
+        await prisma.transaction.update({
+          where: { id: transactionRecord.id },
+          data: {
+            status: "FAILED",
+          },
+        });
+
+        throw new AppError(
+          `Transaction submission failed: ${error.message}`,
+          500,
+          "SUBMISSION_FAILED"
+        );
+      }
     }
-  }
 
-  return {
-    xdr: feeBumpXdr,
-    status: submit ? "submitted" : "ready",
-    fee_payer: feePayerAccount.publicKey,
-  };
+    // Update transaction record to SUCCESS for non-submitted transactions
+    await prisma.transaction.update({
+      where: { id: transactionRecord.id },
+      data: {
+        status: "SUCCESS",
+        txHash: feeBumpTxHash,
+      },
+    });
+
+    return {
+      xdr: feeBumpXdr,
+      status: submit ? "submitted" : "ready",
+      fee_payer: feePayerAccount.publicKey,
+    };
+  } catch (error: any) {
+    // Update transaction record to FAILED for any other errors
+    await prisma.transaction.update({
+      where: { id: transactionRecord.id },
+      data: {
+        status: "FAILED",
+      },
+    });
+
+    throw error;
+  }
 }
 
 export async function feeBumpHandler(
