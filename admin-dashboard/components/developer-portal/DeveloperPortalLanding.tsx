@@ -259,6 +259,12 @@ export function DeveloperPortalLanding() {
             >
               SDK Registry
             </Link>
+            <Link
+              href="/badge"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Badge Generator
+            </Link>
             <a
               href={github}
               className="text-sm font-medium text-primary hover:underline"
