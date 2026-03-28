@@ -54,6 +54,12 @@ export function Navbar() {
                         Partners
                     </Link>
                     <Link
+                        href="/referrals"
+                        className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-block"
+                    >
+                        Referrals
+                    </Link>
+                    <Link
                         href="/roadmap"
                         className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-block"
                     >
