@@ -244,6 +244,18 @@ model StatusSubscription {
   @@index([active])
 }
 /// Tracks email addresses that have opted out of the daily digest.
+model AuditLog {
+  id        String   @id @default(uuid())
+  eventType String
+  actor     String
+  payload   Json?
+  timestamp DateTime @default(now())
+
+  @@index([eventType])
+  @@index([actor])
+  @@index([timestamp])
+}
+
 model DigestUnsubscribe {
   email     String   @id
   createdAt DateTime @default(now())

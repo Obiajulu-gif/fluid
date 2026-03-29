@@ -1,18 +1,8 @@
 import { Request, Response } from "express";
 import { IntelligentRateLimiter } from "../services/intelligentRateLimiter";
 import { TenantUsageTracker } from "../services/tenantUsageTracker";
-
-// ── Auth helper (same pattern as other admin handlers) ─────────────────────
-
-function requireAdminToken(req: Request, res: Response): boolean {
-  const token = req.header("x-admin-token");
-  const expected = process.env.FLUID_ADMIN_TOKEN;
-  if (!expected || token !== expected) {
-    res.status(401).json({ error: "Unauthorized" });
-    return false;
-  }
-  return true;
-}
+import { getAuditActor, logAuditEvent } from "../services/auditLogger";
+import { requireAdminToken } from "../utils/adminAuth";
 
 // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -64,6 +54,12 @@ export async function adminTierAdjustmentHandler(
       adminUserId,
       reason
     );
+    void logAuditEvent("RATE_LIMIT_OVERRIDE", getAuditActor(req), {
+      tenantId,
+      targetTier,
+      reason,
+      adminUserId,
+    });
     res.status(201).json({ adjustment });
   } catch (error) {
     res.status(500).json({ 
@@ -137,6 +133,9 @@ export async function triggerManualScoringHandler(
   try {
     const { dailyScoringWorker } = await import("../workers/dailyScoringWorker");
     await dailyScoringWorker.runDailyScoring();
+    void logAuditEvent("MANUAL_OVERRIDE", getAuditActor(req), {
+      action: "manual-scoring",
+    });
     res.json({ message: "Manual scoring job completed successfully" });
   } catch (error) {
     res.status(500).json({ 
