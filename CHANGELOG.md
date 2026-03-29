@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/Stellar-Fluid/fluid/compare/v1.12.0...v1.13.0) (2026-03-29)
+
+
+### Features
+
+* wormhole integration ([1b7b86b](https://github.com/Stellar-Fluid/fluid/commit/1b7b86b1c39e157019c22ef7b0934d8f451072a6))
+
 # [1.12.0](https://github.com/Stellar-Fluid/fluid/compare/v1.11.0...v1.12.0) (2026-03-29)
 
 
