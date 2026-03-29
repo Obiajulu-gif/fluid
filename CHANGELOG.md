@@ -1,3 +1,10 @@
+# [1.20.0](https://github.com/Stellar-Fluid/fluid/compare/v1.19.0...v1.20.0) (2026-03-29)
+
+
+### Features
+
+* implement transaction data export to csv and pdf ([0ceb553](https://github.com/Stellar-Fluid/fluid/commit/0ceb5535ec99931650fb621bc46e43afa959154b))
+
 # [1.19.0](https://github.com/Stellar-Fluid/fluid/compare/v1.18.0...v1.19.0) (2026-03-29)
 
 
