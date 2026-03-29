@@ -95,6 +95,7 @@ import {
   stopChainRegistryHotReload,
 } from "./services/chainRegistryService";
 import { initializeFeeManager } from "./services/feeManager";
+import { initializeOFACScreening, stopOFACScreening } from "./services/ofacScreening";
 import { listTransactionsHandler } from "./handlers/adminTransactions";
 import { getSpendForecastHandler } from "./handlers/adminAnalytics";
 import { getFeeMultiplierHandler } from "./handlers/adminFeeMultiplier";
@@ -129,6 +130,7 @@ async function initializeAuditLog() {
 
 initializeAuditLog();
 
+initializeOFACScreening();
 const feeManager = initializeFeeManager(config);
 const slackNotifier = new SlackNotifier(loadSlackNotifierOptionsFromEnv());
 const pagerDutyNotifier = new PagerDutyNotifier();
@@ -591,6 +593,7 @@ async function shutdown(signal: string): Promise<void> {
   digestWorker?.stop();
   feeManager.stop();
   stopChainRegistryHotReload();
+  stopOFACScreening();
   crossChainSyncService.stop();
 
   if (server) {
