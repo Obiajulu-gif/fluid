@@ -521,24 +521,7 @@ model TierAdjustment {
   @@index([autoAdjusted])
 }
 
-// Tracks cross-chain state sync events (e.g. Counter sync)
-model CrossChainSync {
-  id              String   @id @default(uuid())
-  sourceChain     String   // "stellar" or "ethereum"
-  targetChain     String
-  sourceTxHash    String   @unique
-  targetTxHash    String?
-  sourceContract  String
-  targetContract  String
-  payload         String   // JSON string of the sync data (e.g. { "count": 10 })
-  status          String   @default("PENDING") // PENDING, COMPLETED, FAILED
-  error           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
 
-  @@index([status])
-  @@index([sourceTxHash])
-}
 
 
 // Admin users with role-based access control
