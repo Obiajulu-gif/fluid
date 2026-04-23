@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { getBillingPageData } from "@/lib/billing-data";
 import { BillingTopUp } from "@/components/dashboard/BillingTopUp";
+import { BillingStatementExport } from "@/components/dashboard/BillingStatementExport";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Wallet, History, ArrowUpRight, Download, CreditCard } from "lucide-react";
 import Link from "next/link";
@@ -53,6 +54,8 @@ export default async function BillingPage() {
               />
             </section>
 
+            <BillingStatementExport data={data} />
+
             <BillingTopUp tenantId={session?.user?.id ?? "tenant-1"} />
 
             <section className="overflow-hidden rounded-3xl border border-border/50 glass shadow-xl">
@@ -61,9 +64,9 @@ export default async function BillingPage() {
                   <History className="h-5 w-5 text-primary" />
                   <h2 className="text-xl font-bold">Payment History</h2>
                 </div>
-                <button className="text-xs font-black uppercase tracking-wider text-muted-foreground hover:text-foreground transition">
-                  Export CSV
-                </button>
+                <div className="text-right text-xs font-black uppercase tracking-wider text-muted-foreground">
+                  Statement export available above
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
