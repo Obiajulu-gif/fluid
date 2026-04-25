@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 mod blocklist;
 mod heuristics;
+pub mod archive;
 
 use blocklist::Blocklist;
 use heuristics::RequestTracker;
