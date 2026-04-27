@@ -23,6 +23,10 @@
     "./worker": {
       "import": "./dist/workers/signingWorker.js",
       "types": "./dist/workers/signingWorker.d.ts"
+    },
+    "./react-native": {
+      "import": "./dist/react-native/index.js",
+      "types": "./dist/react-native/index.d.ts"
     }
   },
   "scripts": {

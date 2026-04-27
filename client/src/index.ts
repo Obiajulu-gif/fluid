@@ -29,3 +29,4 @@ export {
 } from "./stellarCompatibility";
 
 export * from "./testUtils/FluidMockClient";
+export * as ReactNative from "./react-native";
