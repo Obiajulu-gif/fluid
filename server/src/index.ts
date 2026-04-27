@@ -52,7 +52,10 @@ import {
   createCheckoutSessionHandler,
   stripeWebhookHandler,
 } from "./handlers/stripe";
-import { getHorizonFailoverClient } from "./horizon/failoverClient";
+import {
+  getHorizonFailoverClient,
+  initializeHorizonFailoverClient,
+} from "./horizon/failoverClient";
 import { apiKeyMiddleware } from "./middleware/apiKeys";
 import { soc2RequestLogger } from "./middleware/soc2Logger";
 import {
@@ -133,6 +136,11 @@ import {
   startChainRegistryHotReload,
   stopChainRegistryHotReload,
 } from "./services/chainRegistryService";
+import { createBullBoard } from "@bull-board/api";
+import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
+import { ExpressAdapter } from "@bull-board/express";
+import { feeBumpQueue, feeBumpQueueEvents } from "./queues/feeBumpQueue";
+import { initializeFeeBumpWorker } from "./workers/feeBumpWorker";
 
 const logger = createLogger({ component: "server" });
 const config = loadConfig();
@@ -359,6 +367,19 @@ app.post(
   },
 );
 
+// Bull Board — job queue admin UI
+const bullBoardAdapter = new ExpressAdapter();
+bullBoardAdapter.setBasePath("/admin/queues");
+createBullBoard({
+  queues: [new BullMQAdapter(feeBumpQueue)],
+  serverAdapter: bullBoardAdapter,
+});
+app.use(
+  "/admin/queues",
+  requireAuthenticatedAdmin(),
+  bullBoardAdapter.getRouter(),
+);
+
 app.post("/admin/auth/login", adminLoginHandler);
 app.post("/admin/auth/change-password", requireAuthenticatedAdmin(), changeAdminPasswordHandler);
 app.get("/admin/users", requirePermission("manage_users"), listAdminUsersHandler);
@@ -517,6 +538,7 @@ let treasurySweeper: ReturnType<typeof initializeTreasurySweeper> | null = null;
 let digestWorker: ReturnType<typeof initializeDigestWorker> | null = null;
 let tenantErasureWorker: TenantErasureWorker | null = null;
 let treasuryRefillWorker: ReturnType<typeof initializeTreasuryRefill> | null = null;
+let feeBumpWorker: ReturnType<typeof initializeFeeBumpWorker> | null = null;
 let shuttingDown = false;
 let server: ReturnType<typeof app.listen> | null = null;
 
@@ -534,36 +556,18 @@ async function shutdown(signal: string): Promise<void> {
     timestamp: new Date(),
   });
 
-  const stopPromises = [
-    ledgerMonitor?.stop(),
-    balanceMonitor?.stop(),
-    incidentMonitor?.stop(),
-    digestWorker?.stop(),
-    tenantErasureWorker?.stop(),
-    treasuryRefillWorker?.stop(),
-    dailyScoringWorker.stop(),
-    // Keep these even if they are sync to stop everything
-    Promise.resolve(feeManager.stop()),
-    Promise.resolve(stopChainRegistryHotReload()),
-    Promise.resolve(stopOFACScreening()),
-    Promise.resolve(treasurySweeper?.stop()),
-  ];
-
-  try {
-    logger.info("Waiting for workers to finish current cycles...");
-    await Promise.race([
-      Promise.all(stopPromises),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Shutdown timeout exceeded")), 15000),
-      ),
-    ]);
-    logger.info("All workers stopped gracefully");
-  } catch (error) {
-    logger.error(
-      { ...serializeError(error) },
-      "Timeout or error during worker shutdown, proceeding to exit",
-    );
-  }
+  ledgerMonitor?.stop();
+  balanceMonitor?.stop();
+  incidentMonitor?.stop();
+  digestWorker?.stop();
+  tenantErasureWorker?.stop();
+  feeManager.stop();
+  stopChainRegistryHotReload();
+  stopOFACScreening();
+  treasurySweeper?.stop();
+  await feeBumpWorker?.close();
+  await feeBumpQueueEvents.close();
+  await feeBumpQueue.close();
 
   if (server) {
     server.close(() => {
@@ -586,8 +590,13 @@ process.on("SIGINT", () => void shutdown("SIGINT"));
 // --- Background Workers ---
 if (config.horizonUrls.length > 0) {
   try {
-    ledgerMonitor = initializeLedgerMonitor(config);
-    ledgerMonitor.start();
+    const horizonFailoverClient = initializeHorizonFailoverClient(config);
+    ledgerMonitorInstance = initializeLedgerMonitor(
+      config,
+      undefined,
+      horizonFailoverClient,
+    );
+    ledgerMonitorInstance.start();
     logger.info("Ledger monitor worker started");
   } catch (error) {
     logger.error(
@@ -722,6 +731,15 @@ try {
   logger.error(
     { ...serializeError(error) },
     "Failed to start treasury sweeper worker",
+  );
+}
+
+try {
+  feeBumpWorker = initializeFeeBumpWorker(config);
+} catch (error) {
+  logger.error(
+    { ...serializeError(error) },
+    "Failed to start fee-bump queue worker",
   );
 }
 
