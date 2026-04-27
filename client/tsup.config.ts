@@ -42,4 +42,15 @@ export default defineConfig([
       };
     },
   },
+  // CLI build
+  {
+    entry: { cli: "src/cli/index.ts" },
+    format: ["cjs"],
+    clean: false,
+    outDir: "dist",
+    platform: "node",
+    banner: {
+      js: "#!/usr/bin/env node",
+    },
+  },
 ]);
