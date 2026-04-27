@@ -85,4 +85,47 @@ describe("LedgerMonitor", () => {
 
     expect((monitor as any).batchSize).toBe(12);
   });
+
+  it("gracefully waits for current cycle to finish on stop", async () => {
+    const config = {
+      horizonSelectionStrategy: "priority",
+      horizonUrls: ["https://horizon-testnet.stellar.org"],
+    } as any;
+    const webhookService = {
+      dispatch: vi.fn().mockResolvedValue(undefined),
+    };
+    const client = {
+      getNodeStatuses: vi.fn().mockReturnValue([]),
+      getTransaction: vi.fn(),
+    };
+
+    const monitor = new LedgerMonitor(
+      config,
+      webhookService as any,
+      undefined,
+      client as any,
+    );
+
+    let cycleFinished = false;
+    // Mock runCycle to simulate a long-running operation
+    monitor["runCycle"] = async (workFn) => {
+      monitor["currentPromise"] = (async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        cycleFinished = true;
+      })();
+      await monitor["currentPromise"];
+      monitor["currentPromise"] = null;
+    };
+
+    // Trigger a cycle manually
+    const cyclePromise = monitor["runCycle"](async () => {});
+    
+    // Call stop concurrently
+    const stopPromise = monitor.stop();
+    
+    await stopPromise;
+    expect(cycleFinished).toBe(true);
+    await cyclePromise;
+  });
 });
+

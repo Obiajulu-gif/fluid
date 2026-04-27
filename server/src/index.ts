@@ -537,6 +537,7 @@ let incidentMonitor: ReturnType<typeof initializeIncidentMonitor> | null = null;
 let treasurySweeper: ReturnType<typeof initializeTreasurySweeper> | null = null;
 let digestWorker: ReturnType<typeof initializeDigestWorker> | null = null;
 let tenantErasureWorker: TenantErasureWorker | null = null;
+let treasuryRefillWorker: ReturnType<typeof initializeTreasuryRefill> | null = null;
 let feeBumpWorker: ReturnType<typeof initializeFeeBumpWorker> | null = null;
 let shuttingDown = false;
 let server: ReturnType<typeof app.listen> | null = null;
@@ -547,6 +548,8 @@ async function shutdown(signal: string): Promise<void> {
   }
 
   shuttingDown = true;
+  logger.info(`Received ${signal}, starting graceful shutdown...`);
+
   await slackNotifier.notifyServerLifecycle({
     detail: `Signal received: ${signal}`,
     phase: "stop",
@@ -567,16 +570,24 @@ async function shutdown(signal: string): Promise<void> {
   await feeBumpQueue.close();
 
   if (server) {
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 2_000).unref();
+    server.close(() => {
+      logger.info("HTTP server closed");
+      process.exit(0);
+    });
+    setTimeout(() => {
+      logger.warn("HTTP server close timeout, forcing exit");
+      process.exit(0);
+    }, 5000).unref();
     return;
   }
 
   process.exit(0);
 }
 
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
+
 // --- Background Workers ---
-let ledgerMonitorInstance: any = null;
 if (config.horizonUrls.length > 0) {
   try {
     const horizonFailoverClient = initializeHorizonFailoverClient(config);
@@ -639,9 +650,9 @@ if (pagerDutyNotifier.isConfigured() || fcmNotifier.isConfigured()) {
 }
 
 try {
-  const treasuryRefill = initializeTreasuryRefill(config);
-  if (treasuryRefill) {
-    treasuryRefill.start();
+  treasuryRefillWorker = initializeTreasuryRefill(config);
+  if (treasuryRefillWorker) {
+    treasuryRefillWorker.start();
     logger.info("Treasury refill worker started");
   }
 } catch (error) {
