@@ -6,7 +6,15 @@ if (typeof process !== "undefined" && process.env) {
 }
 
 export * from "./FluidClient";
-export * from "./errors";
+export {
+  FluidError,
+  FluidRequestError,
+  FluidNetworkError,
+  FluidServerError,
+  FluidConfigurationError,
+  FluidWalletError,
+  FluidNoAvailableServerError,
+} from "./errors";
 export * from "./soroban";
 export {
   collectTelemetry,

@@ -17,6 +17,7 @@ import {
 import {
   FluidConfigurationError,
   FluidNetworkError,
+  FluidNoAvailableServerError,
   FluidServerError,
   FluidWalletError,
 } from "./errors";
@@ -33,6 +34,10 @@ export interface FluidClientConfig {
   telemetryEndpoint?: string;
   enableDiagnostics?: boolean;
   diagnosticsEndpoint?: string;
+  /**
+   * Request timeout in seconds. Default: 30
+   */
+  timeout?: number;
 }
 
 export interface FeeBumpResponse {
@@ -99,6 +104,7 @@ export class FluidClient {
   private requestIdCounter = 0;
   private readonly horizonUrl?: string;
   private readonly stellarSdk: any;
+  private readonly timeout: number;
   private readonly failedNodeCooldownMs = 30_000;
   private readonly baseRetryDelayMs = 250;
   private readonly maxRetryDelayMs = 2_000;
@@ -113,6 +119,7 @@ export class FluidClient {
     this.networkPassphrase = config.networkPassphrase;
     this.useWorker = config.useWorker || false;
     this.horizonUrl = config.horizonUrl;
+    this.timeout = config.timeout || 30;
 
     this.stellarSdk = resolveStellarSdk(config.stellarSdk ?? StellarSdk);
     if (config.horizonUrl) {
@@ -152,13 +159,23 @@ export class FluidClient {
       .map((url) => url.trim().replace(/\/+$/, ""))
       .filter(Boolean);
 
-    if (normalized.length === 0) {
+    // Preserve order while deduplicating (parity with Python)
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const url of normalized) {
+      if (!seen.has(url)) {
+        seen.add(url);
+        unique.push(url);
+      }
+    }
+
+    if (unique.length === 0) {
       throw new FluidConfigurationError(
         "FluidClient requires at least one server URL via serverUrl or serverUrls"
       );
     }
 
-    return [...new Set(normalized)];
+    return unique;
   }
 
   private getOrderedServerUrls(): string[] {
@@ -211,6 +228,8 @@ export class FluidClient {
     body: unknown
   ): Promise<T> {
     let response: Response;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout * 1000);
 
     try {
       response = await fetch(`${serverUrl}${path}`, {
@@ -219,12 +238,18 @@ export class FluidClient {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
     } catch (error) {
+      const isTimeout = error instanceof Error && error.name === "AbortError";
       throw new FluidNetworkError(
-        `Fluid server request failed: ${error instanceof Error ? error.message : String(error)}`,
+        isTimeout 
+          ? `Fluid server request timed out after ${this.timeout}s` 
+          : `Fluid server request failed: ${error instanceof Error ? error.message : String(error)}`,
         serverUrl
       );
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (!response.ok) {
@@ -278,9 +303,9 @@ export class FluidClient {
       }
     }
 
-    throw (
-      lastError ??
-      new FluidServerError("No available servers for request", 503, "unknown")
+    throw new FluidNoAvailableServerError(
+      "All configured Fluid servers failed or are in cool-down.",
+      "multiple"
     );
   }
 
