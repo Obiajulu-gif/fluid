@@ -1,10 +1,16 @@
 /**
  * Base class for all Fluid-related errors.
  */
+/**
+ * Base class for all Fluid-related errors.
+ */
 export class FluidError extends Error {
+  public helpUrl?: string;
+
   constructor(message: string) {
     super(message);
     this.name = "FluidError";
+    this.helpUrl = getHelpUrl(this.name);
     Object.setPrototypeOf(this, FluidError.prototype);
   }
 }
@@ -21,11 +27,13 @@ export class FluidRequestError extends FluidError {
     this.name = "FluidRequestError";
     this.statusCode = statusCode;
     this.serverUrl = serverUrl;
+    this.helpUrl = getHelpUrl(this.name);
     Object.setPrototypeOf(this, FluidRequestError.prototype);
   }
 
   public toString(): string {
-    return `${this.name}(message=${JSON.stringify(this.message)}, status_code=${this.statusCode}, server_url=${JSON.stringify(this.serverUrl)})`;
+    const help = this.helpUrl ? ` [Docs: ${this.helpUrl}]` : "";
+    return `${this.name}(message=${JSON.stringify(this.message)}, status_code=${this.statusCode}, server_url=${JSON.stringify(this.serverUrl)})${help}`;
   }
 }
 
@@ -36,6 +44,7 @@ export class FluidNetworkError extends FluidRequestError {
   constructor(message: string, serverUrl?: string) {
     super(message, undefined, serverUrl);
     this.name = "FluidNetworkError";
+    this.helpUrl = getHelpUrl(this.name);
     Object.setPrototypeOf(this, FluidNetworkError.prototype);
   }
 }
@@ -50,6 +59,11 @@ export class FluidServerError extends FluidRequestError {
     super(message, status, serverUrl);
     this.name = "FluidServerError";
     this.responseBody = responseBody;
+    
+    // Use server-provided error code for more specific help URL if available
+    const errorCode = responseBody?.code || responseBody?.error_code;
+    this.helpUrl = getHelpUrl(errorCode || this.name);
+    
     Object.setPrototypeOf(this, FluidServerError.prototype);
   }
 }
@@ -61,6 +75,7 @@ export class FluidNoAvailableServerError extends FluidRequestError {
   constructor(message: string, serverUrl?: string) {
     super(message, undefined, serverUrl);
     this.name = "FluidNoAvailableServerError";
+    this.helpUrl = getHelpUrl(this.name);
     Object.setPrototypeOf(this, FluidNoAvailableServerError.prototype);
   }
 }
@@ -72,6 +87,7 @@ export class FluidConfigurationError extends FluidError {
   constructor(message: string) {
     super(message);
     this.name = "FluidConfigurationError";
+    this.helpUrl = getHelpUrl(this.name);
     Object.setPrototypeOf(this, FluidConfigurationError.prototype);
   }
 }
@@ -83,6 +99,22 @@ export class FluidWalletError extends FluidError {
   constructor(message: string) {
     super(message);
     this.name = "FluidWalletError";
+    this.helpUrl = getHelpUrl(this.name);
     Object.setPrototypeOf(this, FluidWalletError.prototype);
   }
+}
+
+/**
+ * Mapping of error names and codes to documentation fragments.
+ */
+const HELP_BASE_URL = "https://docs.fluid.dev/errors";
+
+function getHelpUrl(code: string): string {
+  const fragment = code
+    .replace(/^Fluid/, "")
+    .replace(/Error$/, "")
+    .replace(/([a-z])([A-Z])/g, "$1-$2")
+    .toLowerCase();
+    
+  return `${HELP_BASE_URL}#${fragment}`;
 }
